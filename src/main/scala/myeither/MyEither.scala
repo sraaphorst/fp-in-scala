@@ -2,7 +2,7 @@ package org.vorpal
 package myeither
 
 import mylist.MyList
-import mylist.sum
+import mylist.{sum, flatten}
 import showable.Showable
 import showable.Showable.given
 
@@ -15,9 +15,28 @@ enum MyEither[+E, +A]:
   case MyLeft(value: E)
   case MyRight(value: A)
 
-  def map[B](f: A => B): MyEither[E, B] = this match
+  def isRight: Boolean = this match
+    case MyRight(_) => true
+    case MyLeft(_) => false
+
+  def isLeft: Boolean = this match
+    case MyRight(_) => false
+    case MyLeft(_) => true
+
+  def swap: MyEither[A, E] = this match
+    case MyRight(a) => MyLeft(a)
+    case MyLeft(e) => MyRight(e)
+
+  def map[AA](f: A => AA): MyEither[E, AA] = this match
     case MyRight(a) => MyRight(f(a))
     case MyLeft(e) => MyLeft(e)
+
+  def lmap[EE](g: E => EE): MyEither[EE, A] = this match
+    case MyRight(a) => MyRight(a)
+    case MyLeft(e) => MyLeft(g(e))
+
+  def bimap[EE, AA](l: E => EE, r: A => AA): MyEither[EE, AA] =
+    map(r).lmap(l)
 
   def flatMap[EE >: E, B](f: A => MyEither[EE, B]): MyEither[EE, B] = this match
     case MyRight(a) => f(a)
@@ -68,8 +87,13 @@ object MyEither:
       r <- catchNonFatal(n / d)
     yield r
 
+  // Continue and stop at the first error or gather the entire list of rights.
   def sequence[E, A](lst: MyList[MyEither[E, A]]): MyEither[E, MyList[A]] =
     lst.traverse(identity)
+
+  // Continue and gather all the errors or gather the entire list of rights.
+  def sequenceAll[E, A](lst: MyList[MyEither[MyList[E], A]]): MyEither[MyList[E], MyList[A]] =
+    lst.traverseAll(identity)
 
   // The MyLeft can contain EA or EB.
   def map2[EA, A, EB, B, C](ea: MyEither[EA, A], eb: MyEither[EB, B])(f: (A, B) => C): MyEither[EA | EB, C] =
@@ -96,6 +120,16 @@ object MyEither:
       case (MyRight(_), MyLeft(e)) => MyLeft(MyList(e))
       case (MyLeft(e1), MyLeft(e2)) => MyLeft(MyList(e1, e2))
 
+  // This implementation combines the errors if the lefts contain lists of errors.
+  def map2All[EA, A, EB, B, EC >: EA | EB, C](ea: MyEither[MyList[EA], A],
+                                              eb: MyEither[MyList[EB], B])
+                                             (f: (A, B) => C): MyEither[MyList[EC], C] =
+    (ea, eb) match
+      case (MyRight(a), MyRight(b)) => MyRight(f(a, b))
+      case (MyLeft(es), MyRight(_)) => MyLeft(es)
+      case (MyRight(_), MyLeft(es)) => MyLeft(es)
+      case (MyLeft(es1), MyLeft(es2)) => MyLeft(MyList(es1, es2).flatten)
+
 extension (numerator: Double)
   @targetName("safeDiv")
   def /?(denominator: Int): MyEither[Throwable, Double] =
@@ -113,7 +147,8 @@ object ValidationTesting:
     // Note: when creating a case class, Scala creates an apply method by default.
     // Since we are overriding this apply method, we must use the new keyword when creating a Name.
     def apply(name: String): MyEither[String, Name] =
-      if name == "" || name == null then MyLeft("ERROR: name is missing")
+      if name == null then MyLeft("ERROR: name is null")
+      else if name == "" then MyLeft("ERROR: name is missing")
       else MyRight(new Name(name))
 
   given Showable[Name] with
@@ -122,7 +157,7 @@ object ValidationTesting:
   case class Age private(value: Int)
   object Age:
     def apply(age: Int): MyEither[String, Age] =
-      if age < 0 || age > 150 then MyLeft("ERROR: age is out of range")
+      if age < 0 || age > 150 then MyLeft(s"""ERROR: age "$age" is out of range""")
       else MyRight(new Age(age))
 
   given Showable[Age] with
@@ -142,6 +177,12 @@ extension[A] (lst: MyList[A])
     lst.foldRight[MyEither[E, MyList[B]]](MyEither.MyRight(MyList.MyNil)) { (a, b) =>
       // b is the accumulation of the MyEither[_, List[B]].
       MyEither.map2(f(a), b)(MyList.MyCons.apply)
+    }
+
+  // A variant of traverse that returns all errors.
+  def traverseAll[E, B](f: A => MyEither[MyList[E], B]): MyEither[MyList[E], MyList[B]] =
+    lst.foldRight[MyEither[MyList[E], MyList[B]]](MyEither.MyRight(MyList.MyNil)) { (a, acc) =>
+      MyEither.map2All(f(a), acc)(MyList.MyCons.apply)
     }
 
 @main
@@ -175,14 +216,38 @@ def main_myeither(): Unit =
   println(s"${seq1.show} -> ${MyEither.sequence(seq1).show}")
   val seq2 = MyList(MyRight(1), MyRight(2), MyLeft("3"), MyRight(4), MyLeft("5"), MyRight(6))
   println(s"${seq2.show} -> ${MyEither.sequence(seq2).show}")
+  println()
 
+  println("*** PEOPLE VALIDATION ***")
   // Now show that we can collect errors when creating people.
   // We can even collect a list of errors.
-  val people = MyList(
-    Person.make("", -1),
-    Person.make(null, 25),
-    Person.make("Aluminium", 600),
-    Person.make("Smol", 33),
-    Person.make("Sebastian", 45)
-  )
+  //  val people = MyList(
+  //    Person.make("", -1),
+  //    Person.make(null, 25),
+  //    Person.make("Aluminium", 600),
+  //    Person.make("Smol", 33),
+  //    Person.make("Sebastian", 45)
+  //  )
+
+  val pairs = MyList(("", -1), (null, 25), ("Aluminium", 600), ("smol", 33), ("Sebastian", 45))
+  val people = pairs.map(Person.make.tupled)
+
+  println(s"people data: ${pairs.show}")
   println(s"people result: ${people.show}")
+
+  val p1 = Person.make("Curry", 34)
+  val p2 = Person.make("Howard", 45)
+  println(s"map2Both pass (works on pair only): ${map2Both(p1, p2)((_, _)).show}")
+  println(s"map2All pass (works on pair only):  ${map2All(p1, p2)((_, _)).show}")
+
+  val pe1 = Person.make(null, -1)
+  val pe2 = Person.make("", 3289482)
+  println(s"map2Both fail (works on pair only): ${map2Both(pe1, pe2)((_, _)).show}")
+  println(s"map2All fail (works on pair only):  ${map2All(pe1, pe2)((_, _)).show}")
+
+  // In this case, it gathers all of the errors that occur when people was processed.
+  println(s"All errors (works on list): ${MyEither.sequenceAll(people).show}")
+
+  // In this case, it should just show the people that emerged.
+  println(s"All people (works on list): ${MyEither.sequenceAll(people.filter(_.isRight)).show}")
+
