@@ -49,7 +49,7 @@ enum MyList[+A]:
     case MyCons(x, xs) => MyCons(f(x), xs.map(f))
 
   def flatMap[B](f: A => MyList[B]): MyList[B] =
-    this.map(f).concatenate()
+    this.map(f).concatenate
 
   def filter(p: A => Boolean): MyList[A] = this match
     case MyNil => MyNil
@@ -151,8 +151,9 @@ enum MyList[+A]:
     case MyCons(_, xs) => xs.subsequence(sub)
 
 extension[A] (lsts: MyList[MyList[A]])
-  def concatenate(): MyList[A] =
+  def concatenate: MyList[A] =
     lsts.foldRight(MyList.MyNil: MyList[A]){ (lst, acc) => lst.append(acc) }
+  def flatten: MyList[A] = concatenate
 
 // Sum and product require extensions.
 extension (lst: MyList[Int])
@@ -254,7 +255,7 @@ def main_mylist(): Unit =
   // Concatenation.
   println("concatenate:")
   println(MyList(MyList(1, 2, 3), MyList(4, 5), MyList(6, 7, 8, 9), MyList(10, 11), MyNil, MyList(12))
-    .concatenate()
+    .concatenate
     .show)
   println()
 

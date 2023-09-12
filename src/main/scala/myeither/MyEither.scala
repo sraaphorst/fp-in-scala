@@ -4,6 +4,7 @@ package myeither
 import mylist.MyList
 import mylist.sum
 import showable.Showable
+import showable.Showable.given
 
 import scala.annotation.targetName
 import scala.util.control.NonFatal
@@ -106,31 +107,34 @@ extension (numerator: Double)
 // See the map2Both implementation above.
 object ValidationTesting:
   import MyEither.*
-  import showable.*
-  import showable.Showable
-  import showable.Showable.*
 
   case class Name private (value: String)
   object Name:
     // Note: when creating a case class, Scala creates an apply method by default.
     // Since we are overriding this apply method, we must use the new keyword when creating a Name.
     def apply(name: String): MyEither[String, Name] =
-      if name == "" || name == null then MyLeft("Name is missing.")
+      if name == "" || name == null then MyLeft("ERROR: name is missing")
       else MyRight(new Name(name))
 
-  case class Age(value: Int)
+  given Showable[Name] with
+    extension (n: Name) def show: String = s"Name(${n.value.show})"
+
+  case class Age private(value: Int)
   object Age:
     def apply(age: Int): MyEither[String, Age] =
-      if age < 0 || age > 150 then MyLeft("Age is out of range.")
+      if age < 0 || age > 150 then MyLeft("ERROR: age is out of range")
       else MyRight(new Age(age))
 
-//    given Showable[Age] with
-//      extension (a: Age) def show: String = s"Age(${a.value.show})"
+  given Showable[Age] with
+    extension (a: Age) def show: String = s"Age(${a.value.show})"
 
   case class Person(name: Name, age: Age)
   object Person:
     def make(name: String, age: Int): MyEither[MyList[String], Person] =
       MyEither.map2Both(Name(name), Age(age))(Person(_, _))
+
+  given Showable[Person] with
+    extension (p: Person) def show: String = s"Person(${p.name.show}, ${p.age.show})"
 
 extension[A] (lst: MyList[A])
   // traverse iterates over the lst, returning the first error encountered if there is one.
@@ -143,6 +147,8 @@ extension[A] (lst: MyList[A])
 @main
 def main_myeither(): Unit =
   import MyEither.*
+  import ValidationTesting.*
+  import ValidationTesting.given
 
   val values = MyList(55.0, 78.3, 11.0, 99.9)
   println(s"Mean of ${values.show} is ${MyEither.mean(values).show}")
@@ -171,5 +177,12 @@ def main_myeither(): Unit =
   println(s"${seq2.show} -> ${MyEither.sequence(seq2).show}")
 
   // Now show that we can collect errors when creating people.
-  val p1 = ValidationTesting.Person.make("", -1)
-//  println(s"p1 has: ${p1.show}")
+  // We can even collect a list of errors.
+  val people = MyList(
+    Person.make("", -1),
+    Person.make(null, 25),
+    Person.make("Aluminium", 600),
+    Person.make("Smol", 33),
+    Person.make("Sebastian", 45)
+  )
+  println(s"people result: ${people.show}")

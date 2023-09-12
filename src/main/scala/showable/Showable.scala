@@ -5,6 +5,7 @@ trait Showable[A]:
   extension (a: A) def show: String
 
 
+// To use these, must import showable.Showable.given explicitly.
 object Showable:
 //  given Showable[Nothing] with
 //    extension (a: Nothing) def show: String = ""

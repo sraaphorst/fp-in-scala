@@ -71,9 +71,13 @@ object MyOption:
   def variance(xs: MyList[Double]): MyOption[Double] =
     mean(xs).flatMap(m => mean(xs.map(x => math.pow(x - m, 2))))
 
-// Lift a function to an Option.
-def lift[A, B](f: A => B): Option[A] => Option[B] =
-  _.map(f)
+  // Lift a function to an Option.
+  def lift[A, B](f: A => B): Option[A] => Option[B] =
+    _.map(f)
+
+extension[A] (opt: MyOption[MyOption[A]])
+  def flatten: MyOption[A] =
+    opt.flatMap(identity)
 
 // We can also write functions that accept multiple parameters where the parameters
 // both have to be defined or the result is MyNone.
@@ -122,3 +126,13 @@ def main_myoption(): Unit =
   val list_opt2 = MyCons(MyNone, list_opt1)
   println(s"${list_opt1.show} => ${MyOption.sequence(list_opt1).show}")
   println(s"${list_opt2.show} => ${MyOption.sequence(list_opt2).show}")
+
+  // Test some flattening.
+  val f1: MyOption[MyOption[Int]] = MySome(MySome(2))
+  val f2: MyOption[MyOption[Int]] = MySome(MyNone)
+  val f3: MyOption[MyOption[Int]] = MyNone
+  val f4: MyOption[MyOption[MyOption[Int]]] = MySome(MySome(MySome(3)))
+  println(s"${f1.show}.flatten -> ${f1.flatten.show}")
+  println(s"${f2.show}.flatten -> ${f2.flatten.show}")
+  println(s"${f3.show}.flatten -> ${f3.flatten.show}")
+  println(s"${f4.show}.flatten -> ${f4.flatten.show}")
