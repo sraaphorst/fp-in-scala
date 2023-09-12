@@ -156,12 +156,12 @@ extension[A] (lsts: MyList[MyList[A]])
 
 // Sum and product require extensions.
 extension (lst: MyList[Int])
-  def sum: Int = lst.foldLeft(0){_ + _}
-  def prod: Int = lst.foldLeft(1){_ * _}
+  def sum: Int = lst.foldLeft(0)(_ + _)
+  def prod: Int = lst.foldLeft(1)(_ * _)
 
 extension (lst: MyList[Double])
-  def sum: Double = lst.foldLeft(0.0){_ + _}
-  def prod: Double = lst.foldLeft(1.0){_ * _}
+  def sum: Double = lst.foldLeft(0.0)(_ + _)
+  def prod: Double = lst.foldLeft(1.0)(_ * _)
 
 
 object MyList:

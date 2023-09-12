@@ -6,11 +6,11 @@ trait Showable[A]:
 
 
 object Showable:
-  given Showable[Nothing] with
-    extension (a: Nothing) def show: String = ""
-
-  given Showable[Null] with
-    extension (a: Null) def show: String = ""
+//  given Showable[Nothing] with
+//    extension (a: Nothing) def show: String = ""
+//
+//  given Showable[Null] with
+//    extension (a: Null) def show: String = ""
 
   given Showable[Int] with
     extension (a: Int) def show: String = a.toString
@@ -25,3 +25,6 @@ object Showable:
     extension (pair: (A, B)) def show: String =
       val (a, b) = pair
       s"(${a.show}, ${b.show})"
+
+  given Showable[Throwable] with
+    extension (t: Throwable) def show: String = t.getMessage

@@ -4,9 +4,7 @@ package myoption
 import showable.Showable
 import mylist.MyList
 import mylist.MyList.*
-
-import org.vorpal.myoption.MyOption.MySome
-
+import mylist.sum
 
 enum MyOption[+A]:
   case MySome(get: A)
@@ -52,14 +50,26 @@ object MyOption:
   def sequence[A](lst: MyList[MyOption[A]]): MyOption[MyList[A]] =
     lst.traverse(identity)
 
+  // Now we write a function called map2 that takes a map of two parameters
+  // and two MyOptions and produces a result if they're both defined.
+  def map2[A, B, C](oa: MyOption[A], ob: MyOption[B])(f: (A, B) => C): MyOption[C] =
+    oa.flatMap(a => ob.map(b => f(a, b)))
 
-extension (xs: Seq[Double])
-  def mean: MyOption[Double] =
+  // Note that map2 could be written in terms of a for comprehension, since for comprehensions
+  // simply rely on flatMap and map calls. Here we implement map3 using this convention.
+  def map3[A, B, C, D](oa: MyOption[A], ob: MyOption[B], oc: MyOption[C])(f: (A, B, C) => D): MyOption[D] =
+    for
+      a <- oa // flatMap
+      b <- ob // flatMap
+      c <- oc // map
+    yield f(a, b, c)
+
+  def mean(xs: MyList[Double]): MyOption[Double] =
     if xs.isEmpty then MyOption.MyNone
     else MyOption.MySome(xs.sum / xs.length)
 
-  def variance: MyOption[Double] =
-    xs.mean.flatMap(m => xs.map(x => math.pow(x - m, 2)).mean)
+  def variance(xs: MyList[Double]): MyOption[Double] =
+    mean(xs).flatMap(m => mean(xs.map(x => math.pow(x - m, 2))))
 
 // Lift a function to an Option.
 def lift[A, B](f: A => B): Option[A] => Option[B] =
@@ -75,20 +85,6 @@ def toIntOption(input: String): MyOption[Int] =
   try MyOption.MySome(input.toInt)
   catch case _: NumberFormatException => MyOption.MyNone
 
-// Now we write a function called map2 that takes a map of two parameters
-// and two MyOptions and produces a result if they're both defined.
-def map2[A, B, C](oa: MyOption[A], ob: MyOption[B])(f: (A, B) => C): MyOption[C] =
-  oa.flatMap(a => ob.map(b => f(a, b)))
-
-// Note that map2 could be written in terms of a for comprehension, since for comprehensions
-// simply rely on flatMap and map calls. Here we implement map3 using this convention.
-def map3[A, B, C, D](oa: MyOption[A], ob: MyOption[B], oc: MyOption[C])(f: (A, B, C) => D): MyOption[D] =
-  for
-    a <- oa // flatMap
-    b <- ob // flatMap
-    c <- oc // map
-  yield f(a, b, c)
-
 extension[A] (lst: MyList[A])
   // Write traverse in terms of sequenceF.
   // Note that this is inefficient, because we have to do two passes over the list:
@@ -101,7 +97,7 @@ extension[A] (lst: MyList[A])
   // This is much more efficient as we only iterate over the list once.
   def traverse[B](f: A => MyOption[B]): MyOption[MyList[B]] =
     lst.foldRight[MyOption[MyList[B]]](MyOption.MySome(MyList.MyNil)) { (a, acc) =>
-      map2(f(a), acc)(MyList.MyCons.apply)
+      MyOption.map2(f(a), acc)(MyList.MyCons.apply)
     }
 
 @main
