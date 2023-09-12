@@ -5,6 +5,8 @@ import showable.Showable
 import mylist.MyList
 import mylist.MyList.*
 
+import org.vorpal.myoption.MyOption.MySome
+
 
 enum MyOption[+A]:
   case MySome(get: A)
@@ -28,10 +30,6 @@ enum MyOption[+A]:
     flatMap(a => if f(a) then MySome(a) else MyNone)
 
 object MyOption:
-//  def apply[A](a: A): MyOption[A] = MySome(a)
-//  def apply(a: AnyRef) = a match
-//    case null => MyNil
-//    case _ => MySome(a)
   def apply[A](a: A): MyOption[A] = {
     if (a == null) MyNone
     else MySome(a)
@@ -44,6 +42,17 @@ object MyOption:
       case MySome(a) => s"MySome(${a.show})"
       case MyNone => "MyNone"
 
+  // Sequence the list, i.e. if any element of the list is MyNone, return MyNone.
+  // This is included here because it is too generic to extend MyList[MyOption[A]].
+  // Note that after we write traverse below, we can use it to rewrite sequence as we do below.
+//  def sequence[A](lst: MyList[MyOption[A]]): MyOption[MyList[A]] =
+//    lst.foldRight[MyOption[MyList[A]]](MySome(MyNil)) { (a, acc) =>
+//      map2(a, acc)(MyCons.apply)
+//    }
+  def sequence[A](lst: MyList[MyOption[A]]): MyOption[MyList[A]] =
+    lst.traverse(identity)
+
+
 extension (xs: Seq[Double])
   def mean: MyOption[Double] =
     if xs.isEmpty then MyOption.MyNone
@@ -52,8 +61,53 @@ extension (xs: Seq[Double])
   def variance: MyOption[Double] =
     xs.mean.flatMap(m => xs.map(x => math.pow(x - m, 2)).mean)
 
+// Lift a function to an Option.
+def lift[A, B](f: A => B): Option[A] => Option[B] =
+  _.map(f)
+
+// We can also write functions that accept multiple parameters where the parameters
+// both have to be defined or the result is MyNone.
+def performComputation(arg1: Int, arg2: Int): Int = ???
+
+// Say we have data coming in from a webpage. We want to parse it to Int.
+// Could use String.toIntOption but this shows some features of Scala pattern matching.
+def toIntOption(input: String): MyOption[Int] =
+  try MyOption.MySome(input.toInt)
+  catch case _: NumberFormatException => MyOption.MyNone
+
+// Now we write a function called map2 that takes a map of two parameters
+// and two MyOptions and produces a result if they're both defined.
+def map2[A, B, C](oa: MyOption[A], ob: MyOption[B])(f: (A, B) => C): MyOption[C] =
+  oa.flatMap(a => ob.map(b => f(a, b)))
+
+// Note that map2 could be written in terms of a for comprehension, since for comprehensions
+// simply rely on flatMap and map calls. Here we implement map3 using this convention.
+def map3[A, B, C, D](oa: MyOption[A], ob: MyOption[B], oc: MyOption[C])(f: (A, B, C) => D): MyOption[D] =
+  for
+    a <- oa // flatMap
+    b <- ob // flatMap
+    c <- oc // map
+  yield f(a, b, c)
+
+extension[A] (lst: MyList[A])
+  // Write traverse in terms of sequenceF.
+  // Note that this is inefficient, because we have to do two passes over the list:
+  // 1. First we call map on the list.
+  // 2. Then we foldRight on the resultant list.
+//   def traverse[B](f: A => MyOption[B]): MyOption[MyList[B]] =
+//    MyOption.sequenceF(lst.map(f))
+
+  // Write traverse as a fold expression.
+  // This is much more efficient as we only iterate over the list once.
+  def traverse[B](f: A => MyOption[B]): MyOption[MyList[B]] =
+    lst.foldRight[MyOption[MyList[B]]](MyOption.MySome(MyList.MyNil)) { (a, acc) =>
+      map2(f(a), acc)(MyList.MyCons.apply)
+    }
+
 @main
 def main_myoption(): Unit =
+  import MyOption.*
+
   val o1 = MyOption.MySome(1)
   val o2: MyOption[Int] = MyOption.MyNone
   println(o1.show)
@@ -66,3 +120,9 @@ def main_myoption(): Unit =
 
   val opt_list = MyOption(MyList("hello", "world"))
   println(opt_list.show)
+
+  // Test out sequence.
+  val list_opt1 = MyList(MySome(1), MySome(2), MySome(3), MySome(4))
+  val list_opt2 = MyCons(MyNone, list_opt1)
+  println(s"${list_opt1.show} => ${MyOption.sequence(list_opt1).show}")
+  println(s"${list_opt2.show} => ${MyOption.sequence(list_opt2).show}")
