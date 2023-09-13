@@ -2,9 +2,11 @@ package org.vorpal
 package myeither
 
 import mylist.MyList
-import mylist.{sum, flatten}
+import mylist.{flatten, sum}
 import showable.Showable
 import showable.Showable.given
+
+import org.vorpal.myoption.MyOption
 
 import scala.annotation.targetName
 import scala.util.control.NonFatal
@@ -22,6 +24,10 @@ enum MyEither[+E, +A]:
   def isLeft: Boolean = this match
     case MyRight(_) => false
     case MyLeft(_) => true
+
+  def toOption: MyOption[A] = this match
+    case MyRight(a) => MyOption.MySome(a)
+    case MyLeft(_) => MyOption.MyNone
 
   def swap: MyEither[A, E] = this match
     case MyRight(a) => MyLeft(a)
